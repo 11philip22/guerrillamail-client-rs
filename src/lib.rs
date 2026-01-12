@@ -28,7 +28,7 @@ mod models;
 
 pub use client::Client;
 pub use error::Error;
-pub use models::Message;
+pub use models::{EmailDetails, Message};
 
 /// Result type alias for GuerrillaMail operations.
 pub type Result<T> = std::result::Result<T, Error>;

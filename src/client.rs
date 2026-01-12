@@ -197,6 +197,46 @@ impl Client {
         Ok(response.status().is_success())
     }
 
+    /// Fetch the full content of a specific email.
+    ///
+    /// # Arguments
+    /// * `email` - The full email address
+    /// * `mail_id` - The message ID to fetch
+    ///
+    /// # Returns
+    /// The full email details including the body
+    pub async fn fetch_email(&self, email: &str, mail_id: &str) -> Result<crate::EmailDetails> {
+        let alias = email.split('@').next().unwrap_or(email);
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+
+        let params = [
+            ("f", "fetch_email"),
+            ("email_id", mail_id),
+            ("site", "guerrillamail.com"),
+            ("in", alias),
+            ("_", &timestamp.to_string()),
+        ];
+
+        let mut headers = self.headers();
+        headers.remove(CONTENT_TYPE);
+
+        let response: serde_json::Value = self
+            .http
+            .get(format!("{}/ajax.php", BASE_URL))
+            .query(&params)
+            .headers(headers)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        serde_json::from_value(response).map_err(|_| Error::TokenParse)
+    }
+
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(HOST, HeaderValue::from_static("www.guerrillamail.com"));

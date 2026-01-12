@@ -1,6 +1,6 @@
 [package]
 name = "guerrillamail-client"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Async Rust client for GuerrillaMail temporary email service"
 license = "MIT"
@@ -18,5 +18,5 @@ thiserror = "2"
 rand = "0.9"
 
 [[example]]
-name = "get_mail"
-path = "examples/get_mail.rs"
+name = "demo"
+path = "examples/demo.rs"
