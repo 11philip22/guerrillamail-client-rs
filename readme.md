@@ -50,6 +50,10 @@ async fn main() -> Result<(), guerrillamail::Error> {
 }
 ```
 
+## Acknowledgements
+
+This library is a Rust port of [GuerrillaMail-Python](https://github.com/rino-snow/GuerrillaMail-Python).
+
 ## License
 
 MIT License - see [license](license) for details.
