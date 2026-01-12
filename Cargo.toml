@@ -18,5 +18,5 @@ thiserror = "2"
 rand = "0.9"
 
 [[example]]
-name = "verify"
-path = "examples/verify.rs"
+name = "get_mail"
+path = "examples/get_mail.rs"
