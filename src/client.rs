@@ -1,7 +1,6 @@
 //! GuerrillaMail async client implementation.
 
 use crate::{Error, Message, Result};
-use rand::seq::IndexedRandom;
 use regex::Regex;
 use reqwest::header::{
     HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, HOST, ORIGIN, REFERER,
@@ -41,7 +40,8 @@ impl Client {
             builder = builder.proxy(reqwest::Proxy::all(proxy_url)?);
         }
 
-        let http = builder.build()?;
+        // Enable cookie store to persist session between requests
+        let http = builder.cookie_store(true).build()?;
 
         // Fetch the main page to get API token and domains
         let response = http.get(BASE_URL).send().await?.text().await?;
@@ -87,22 +87,11 @@ impl Client {
     ///
     /// # Arguments
     /// * `alias` - The email alias (part before @)
-    /// * `domain` - Optional domain; if None, a random domain is chosen
+    /// * `domain` - Optional domain (currently ignored by API - default domain is used)
     ///
     /// # Returns
-    /// The full email address (e.g., "alias@guerrillamail.com")
-    pub async fn create_email(&self, alias: &str, domain: Option<&str>) -> Result<String> {
-        let selected_domain = match domain {
-            Some(d) => d.to_string(),
-            None => {
-                let mut rng = rand::rng();
-                self.domains
-                    .choose(&mut rng)
-                    .ok_or(Error::NoDomains)?
-                    .clone()
-            }
-        };
-
+    /// The full email address assigned by GuerrillaMail
+    pub async fn create_email(&self, alias: &str, _domain: Option<&str>) -> Result<String> {
         let params = [("f", "set_email_user")];
         let form = [
             ("email_user", alias),
@@ -111,16 +100,26 @@ impl Client {
             ("in", " Set cancel"),
         ];
 
-        self.http
+        let response: serde_json::Value = self
+            .http
             .post(format!("{}/ajax.php", BASE_URL))
             .query(&params)
             .form(&form)
             .headers(self.headers())
             .send()
             .await?
-            .error_for_status()?;
+            .error_for_status()?
+            .json()
+            .await?;
 
-        Ok(format!("{}@{}", alias, selected_domain))
+        // Parse actual email from response
+        let email_addr = response
+            .get("email_addr")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .ok_or(Error::TokenParse)?;
+
+        Ok(email_addr)
     }
 
     /// Get messages for an email address.

@@ -9,7 +9,7 @@ keywords = ["email", "temporary", "guerrillamail", "async"]
 categories = ["api-bindings", "asynchronous"]
 
 [dependencies]
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "cookies"] }
 tokio = { version = "1", features = ["full"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
