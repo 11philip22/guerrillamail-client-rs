@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Async Rust client for GuerrillaMail temporary email service"
 license = "MIT"
-repository = "https://github.com/rino-snow/guerillamail-rs"
+repository = "https://github.com/11philip22/guerillamail-client-rs"
 keywords = ["email", "temporary", "guerrillamail", "async"]
 categories = ["api-bindings", "asynchronous"]
 
