@@ -4,12 +4,12 @@ version = "0.2.0"
 edition = "2021"
 description = "Async Rust client for GuerrillaMail temporary email service"
 license = "MIT"
-repository = "https://github.com/11philip22/guerillamail-client-rs"
+repository = "https://github.com/11philip22/guerrillamail-client-rs"
 keywords = ["email", "temporary", "guerrillamail", "async"]
 categories = ["api-bindings", "asynchronous"]
 
 [dependencies]
-reqwest = { version = "0.12", features = ["json", "cookies"] }
+reqwest = { version = "0.12", features = ["json", "cookies", "socks"] }
 tokio = { version = "1", features = ["full"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
