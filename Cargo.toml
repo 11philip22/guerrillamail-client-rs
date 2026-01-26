@@ -1,7 +1,7 @@
 [package]
 name = "guerrillamail-client"
 version = "0.3.1"
-edition = "2021"
+edition = "2024"
 description = "Async Rust client for GuerrillaMail temporary email service"
 license = "MIT"
 repository = "https://github.com/11philip22/guerrillamail-client-rs"
