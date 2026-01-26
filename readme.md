@@ -22,7 +22,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-guerrillamail = "0.1"
+guerrillamail = "0.3.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
