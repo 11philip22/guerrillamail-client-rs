@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // =========================================
     println!("\n📬 Creating temporary email...");
     let alias = format!("demo{}", rand::random::<u16>());
-    let email = client.create_email(&alias, None).await?;
+    let email = client.create_email(&alias).await?;
     println!("   ✅ Created: {}", email);
 
     // =========================================

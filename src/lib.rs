@@ -9,7 +9,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), guerrillamail::Error> {
 //!     let client = Client::new().await?;
-//!     let email = client.create_email("myalias", None).await?;
+//!     let email = client.create_email("myalias").await?;
 //!     println!("Created: {}", email);
 //!     
 //!     let messages = client.get_messages(&email).await?;

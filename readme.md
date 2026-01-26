@@ -37,7 +37,7 @@ async fn main() -> Result<(), guerrillamail::Error> {
     let client = Client::new().await?;
     
     // Create a temporary email address
-    let email = client.create_email("myalias", None).await?;
+    let email = client.create_email("myalias").await?;
     println!("Temporary email: {}", email);
     
     // Check for messages

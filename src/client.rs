@@ -88,11 +88,10 @@ impl Client {
     ///
     /// # Arguments
     /// * `alias` - The email alias (part before @)
-    /// * `domain` - Optional domain (currently ignored by API - default domain is used)
     ///
     /// # Returns
     /// The full email address assigned by GuerrillaMail
-    pub async fn create_email(&self, alias: &str, _domain: Option<&str>) -> Result<String> {
+    pub async fn create_email(&self, alias: &str) -> Result<String> {
         let params = [("f", "set_email_user")];
         let form = [
             ("email_user", alias),
