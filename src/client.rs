@@ -16,6 +16,7 @@ use reqwest::header::{
     ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, HOST, HeaderMap, HeaderValue, ORIGIN, REFERER,
     USER_AGENT,
 };
+use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Async client for the GuerrillaMail temporary email service.
@@ -30,13 +31,24 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// - GuerrillaMail addresses are represented by an *alias* (the part before `@`) plus a domain.
 ///   Several API calls only use the alias; this client extracts it automatically.
 /// - All methods are async and require a Tokio runtime (or any runtime compatible with `reqwest`).
-#[derive(Debug)]
 pub struct Client {
     http: reqwest::Client,
     api_token_header: HeaderValue,
     proxy: Option<String>,
     user_agent: String,
     ajax_url: String,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("http", &"<reqwest::Client>")
+            .field("api_token_header", &"<redacted>")
+            .field("proxy", &self.proxy)
+            .field("user_agent", &self.user_agent)
+            .field("ajax_url", &self.ajax_url)
+            .finish()
+    }
 }
 
 impl Client {
@@ -334,11 +346,13 @@ impl Client {
     /// Generate a millisecond timestamp suitable for cache-busting query parameters.
     ///
     /// # Panics
-    /// Panics if the system clock is before the Unix epoch (extremely unlikely in practice).
+    ///
+    /// Panics if the system clock is before the Unix epoch. This indicates a
+    /// misconfigured or broken system clock and is treated as a fatal error.
     fn timestamp() -> String {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system clock is before UNIX_EPOCH")
             .as_millis()
             .to_string()
     }
