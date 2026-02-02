@@ -137,10 +137,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. Delete/forget email address
     // =========================================
     println!("\n🗑️  Cleaning up email address...");
-    match client.delete_email(&email).await {
-        Ok(true) => println!("   ✅ Email address deleted"),
-        Ok(false) => println!("   ⚠️  Deletion may have failed"),
-        Err(e) => eprintln!("   ❌ Error: {}", e),
+    if let Err(e) = client.delete_email(&email).await {
+        eprintln!("   ❌ Error: {}", e);
+    } else {
+        println!("   ✅ Email address deleted");
     }
 
     println!("\n{}", "=".repeat(50));

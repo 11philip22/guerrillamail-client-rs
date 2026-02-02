@@ -25,7 +25,12 @@ pub enum Error {
     ///
     /// Use this for “missing field”, “unexpected type”, or “schema changed” cases.
     #[error("Unexpected GuerrillaMail response: {0}")]
+    #[deprecated(note = "Use ResponseParseContext for richer diagnostics")]
     ResponseParse(&'static str),
+
+    /// Response parsing failed with contextual detail.
+    #[error("Unexpected GuerrillaMail response: {msg}")]
+    ResponseParseContext { msg: String },
 
     /// Failed to parse the API token from the GuerrillaMail homepage.
     ///
