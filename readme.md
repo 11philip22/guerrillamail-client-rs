@@ -79,6 +79,31 @@ async fn main() -> Result<(), guerrillamail_client::Error> {
 }
 ```
 
+## Downloading attachments
+
+```rust
+use guerrillamail_client::Client;
+
+#[tokio::main]
+async fn main() -> Result<(), guerrillamail_client::Error> {
+    let client = Client::new().await?;
+    let email = client.create_email("myalias").await?;
+    let messages = client.get_messages(&email).await?;
+
+    if let Some(msg) = messages.first() {
+        let attachments = client.list_attachments(&email, &msg.mail_id).await?;
+        if let Some(attachment) = attachments.first() {
+            let bytes = client
+                .fetch_attachment(&email, &msg.mail_id, attachment)
+                .await?;
+            println!("Downloaded {} bytes", bytes.len());
+        }
+    }
+
+    Ok(())
+}
+```
+
 ## Configuration via builder
 
 For proxies, stricter TLS, or custom user agents, use the builder API:

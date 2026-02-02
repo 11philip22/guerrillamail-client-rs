@@ -90,6 +90,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if details.mail_body.len() > 500 {
                             println!("   ... (truncated)");
                         }
+
+                        // =========================================
+                        // 4b. Download attachments (if any)
+                        // =========================================
+                        if !details.attachments.is_empty() {
+                            println!("\n📎 Found {} attachment(s)", details.attachments.len());
+                            for attachment in &details.attachments {
+                                println!("   - {}", attachment.filename);
+                                match client
+                                    .fetch_attachment(&email, &msg.mail_id, attachment)
+                                    .await
+                                {
+                                    Ok(bytes) => {
+                                        println!("     ✅ Downloaded {} bytes", bytes.len());
+                                    }
+                                    Err(e) => {
+                                        eprintln!("     ❌ Download failed: {}", e);
+                                    }
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("   ❌ Failed to fetch: {}", e);

@@ -28,7 +28,7 @@ mod models;
 
 pub use client::{Client, ClientBuilder};
 pub use error::Error;
-pub use models::{EmailDetails, Message};
+pub use models::{Attachment, EmailDetails, Message};
 
 /// Result type alias for GuerrillaMail operations.
 ///

@@ -10,7 +10,7 @@
 //! 4) Fetch full message content via [`Client::fetch_email`]
 //! 5) Optionally forget the address via [`Client::delete_email`]
 
-use crate::{Error, Message, Result};
+use crate::{Attachment, Error, Message, Result};
 use regex::Regex;
 use reqwest::header::{
     ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, HOST, HeaderMap, HeaderValue, ORIGIN, REFERER,
@@ -37,6 +37,7 @@ pub struct Client {
     proxy: Option<String>,
     user_agent: String,
     ajax_url: String,
+    base_url: String,
 }
 
 impl fmt::Debug for Client {
@@ -47,6 +48,7 @@ impl fmt::Debug for Client {
             .field("proxy", &self.proxy)
             .field("user_agent", &self.user_agent)
             .field("ajax_url", &self.ajax_url)
+            .field("base_url", &self.base_url)
             .finish()
     }
 }
@@ -232,9 +234,127 @@ impl Client {
     /// # }
     /// ```
     pub async fn fetch_email(&self, email: &str, mail_id: &str) -> Result<crate::EmailDetails> {
-        let response = self.get_api("fetch_email", email, Some(mail_id)).await?;
-        let details: crate::EmailDetails = serde_json::from_value(response)?;
-        Ok(details)
+        let raw = self.get_api_text("fetch_email", email, Some(mail_id)).await?;
+        #[cfg(feature = "debug_responses")]
+        {
+            eprintln!("fetch_email raw response for EmailDetails (mail_id={})", mail_id);
+            if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(obj) = value.as_object_mut() {
+                    if obj.contains_key("sid_token") {
+                        obj.insert("sid_token".to_string(), serde_json::Value::String("<redacted>".to_string()));
+                    }
+                }
+                if let Ok(pretty) = serde_json::to_string_pretty(&value) {
+                    eprintln!("{pretty}");
+                } else {
+                    eprintln!("{raw}");
+                }
+            } else {
+                let redacted = Self::redact_sid_token(&raw);
+                eprintln!("{redacted}");
+            }
+        }
+
+        match serde_json::from_str::<crate::EmailDetails>(&raw) {
+            Ok(details) => Ok(details),
+            Err(err) => {
+                #[cfg(feature = "debug_responses")]
+                {
+                    let redacted = Self::redact_sid_token(&raw);
+                    eprintln!(
+                        "fetch_email deserialization error for EmailDetails (mail_id={}): {}",
+                        mail_id, err
+                    );
+                    eprintln!("{redacted}");
+                }
+                Err(Error::Json(err))
+            }
+        }
+    }
+
+    /// List attachment metadata for a message.
+    ///
+    /// This is a convenience wrapper around [`Client::fetch_email`] that returns
+    /// the attachment list (if any).
+    pub async fn list_attachments(
+        &self,
+        email: &str,
+        mail_id: &str,
+    ) -> Result<Vec<Attachment>> {
+        let details = self.fetch_email(email, mail_id).await?;
+        Ok(details.attachments)
+    }
+
+    /// Download an attachment for a message.
+    ///
+    /// The GuerrillaMail API may return a `sid_token` as part of `fetch_email`. When present,
+    /// it is included in the download request. If no token is provided, the request relies
+    /// on the existing session cookies.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - the attachment does not include a part id,
+    /// - the request fails,
+    /// - the server returns a non-success status.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use guerrillamail_client::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), guerrillamail_client::Error> {
+    /// let client = Client::new().await?;
+    /// let email = client.create_email("myalias").await?;
+    /// let messages = client.get_messages(&email).await?;
+    /// if let Some(msg) = messages.first() {
+    ///     let attachments = client.list_attachments(&email, &msg.mail_id).await?;
+    ///     if let Some(attachment) = attachments.first() {
+    ///         let bytes = client.fetch_attachment(&email, &msg.mail_id, attachment).await?;
+    ///         println!("Downloaded {} bytes", bytes.len());
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn fetch_attachment(
+        &self,
+        email: &str,
+        mail_id: &str,
+        attachment: &Attachment,
+    ) -> Result<Vec<u8>> {
+        if attachment.part_id.trim().is_empty() {
+            return Err(Error::ResponseParse("attachment missing part_id"));
+        }
+        if mail_id.trim().is_empty() {
+            return Err(Error::ResponseParse("missing mail_id for attachment download"));
+        }
+
+        let details = self.fetch_email(email, mail_id).await?;
+        let inbox_url = self.inbox_url();
+
+        let mut query = vec![
+            ("get_att", "".to_string()),
+            ("lang", "en".to_string()),
+            ("email_id", mail_id.to_string()),
+            ("part_id", attachment.part_id.clone()),
+        ];
+
+        if let Some(token) = details.sid_token.as_deref() {
+            if !token.is_empty() {
+                query.push(("sid_token", token.to_string()));
+            }
+        }
+
+        let response = self
+            .http
+            .get(&inbox_url)
+            .query(&query)
+            .headers(self.headers())
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let bytes = response.bytes().await?;
+        Ok(bytes.to_vec())
     }
 
     /// Forget/delete the given email address from the current session.
@@ -301,23 +421,7 @@ impl Client {
         email: &str,
         email_id: Option<&str>,
     ) -> Result<serde_json::Value> {
-        let alias = Self::extract_alias(email);
-        let timestamp = Self::timestamp();
-
-        let mut params = vec![
-            ("f", function.to_string()),
-            ("site", "guerrillamail.com".to_string()),
-            ("in", alias.to_string()),
-            ("_", timestamp),
-        ];
-
-        if let Some(id) = email_id {
-            params.insert(1, ("email_id", id.to_string()));
-        }
-
-        if function == "check_email" {
-            params.insert(1, ("seq", "1".to_string()));
-        }
+        let params = self.api_params(function, email, email_id);
 
         let mut headers = self.headers();
         headers.remove(CONTENT_TYPE);
@@ -336,11 +440,75 @@ impl Client {
         Ok(response)
     }
 
+    async fn get_api_text(
+        &self,
+        function: &str,
+        email: &str,
+        email_id: Option<&str>,
+    ) -> Result<String> {
+        let params = self.api_params(function, email, email_id);
+
+        let mut headers = self.headers();
+        headers.remove(CONTENT_TYPE);
+
+        let response = self
+            .http
+            .get(&self.ajax_url)
+            .query(&params)
+            .headers(headers)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+
+        Ok(response)
+    }
+
     /// Extract the alias (local-part) from a full email address.
     ///
     /// If the string does not contain `@`, the full input is returned unchanged.
     fn extract_alias(email: &str) -> &str {
         email.split('@').next().unwrap_or(email)
+    }
+
+    fn api_params(
+        &self,
+        function: &str,
+        email: &str,
+        email_id: Option<&str>,
+    ) -> Vec<(&str, String)> {
+        let alias = Self::extract_alias(email);
+        let timestamp = Self::timestamp();
+
+        let mut params = vec![
+            ("f", function.to_string()),
+            ("site", "guerrillamail.com".to_string()),
+            ("in", alias.to_string()),
+            ("_", timestamp),
+        ];
+
+        if let Some(id) = email_id {
+            params.insert(1, ("email_id", id.to_string()));
+        }
+
+        if function == "check_email" {
+            params.insert(1, ("seq", "1".to_string()));
+        }
+
+        params
+    }
+
+    #[cfg(feature = "debug_responses")]
+    // Redacts sid_token in debug logging to avoid leaking sensitive values.
+    fn redact_sid_token(raw: &str) -> String {
+        let re = Regex::new(r#"("sid_token"\s*:\s*")[^"]*(")"#)
+            .unwrap_or_else(|_| Regex::new(r"$^").expect("regex fallback failed"));
+        re.replace_all(raw, r#"$1<redacted>$2"#).to_string()
+    }
+
+    fn inbox_url(&self) -> String {
+        format!("{}/inbox", self.base_url.trim_end_matches('/'))
     }
 
     /// Generate a millisecond timestamp suitable for cache-busting query parameters.
@@ -411,12 +579,14 @@ const USER_AGENT_VALUE: &str =
 /// - `danger_accept_invalid_certs = true` (convenient for interception/testing)
 /// - A browser-like user agent
 /// - The default GuerrillaMail AJAX endpoint
+/// - The default GuerrillaMail base URL
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
     proxy: Option<String>,
     danger_accept_invalid_certs: bool,
     user_agent: String,
     ajax_url: String,
+    base_url: String,
 }
 
 impl Default for ClientBuilder {
@@ -435,6 +605,7 @@ impl ClientBuilder {
             danger_accept_invalid_certs: true,
             user_agent: USER_AGENT_VALUE.to_string(),
             ajax_url: AJAX_URL.to_string(),
+            base_url: BASE_URL.to_string(),
         }
     }
 
@@ -475,6 +646,14 @@ impl ClientBuilder {
         self
     }
 
+    /// Override the GuerrillaMail base URL.
+    ///
+    /// This is primarily useful for testing.
+    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.base_url = base_url.into();
+        self
+    }
+
     /// Build the [`Client`] by performing the bootstrap request.
     ///
     /// This creates an underlying `reqwest::Client` (with cookie storage enabled), performs
@@ -511,7 +690,7 @@ impl ClientBuilder {
         let http = builder.cookie_store(true).build()?;
 
         // Fetch the main page to get API token.
-        let response = http.get(BASE_URL).send().await?.text().await?;
+        let response = http.get(&self.base_url).send().await?.text().await?;
 
         // Parse API token: api_token : 'xxxxxxxx'
         let token_re = Regex::new(r"api_token\s*:\s*'(\w+)'")?;
@@ -528,6 +707,88 @@ impl ClientBuilder {
             proxy: self.proxy,
             user_agent: self.user_agent,
             ajax_url: self.ajax_url,
+            base_url: self.base_url,
         })
+    }
+}
+
+#[cfg(test)]
+impl Client {
+    fn new_for_tests(base_url: String, ajax_url: String) -> Self {
+        let http = reqwest::Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("test client build failed");
+        let api_token_header = HeaderValue::from_static("ApiToken test");
+        Self {
+            http,
+            api_token_header,
+            proxy: None,
+            user_agent: USER_AGENT_VALUE.to_string(),
+            ajax_url,
+            base_url,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn fetch_attachment_builds_request_and_returns_bytes() {
+        let server = MockServer::start();
+        let base_url = server.base_url();
+
+        let fetch_email_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/ajax.php")
+                .query_param("f", "fetch_email")
+                .query_param("email_id", "123");
+            then.status(200).json_body(json!({
+                "mail_id": "123",
+                "mail_from": "sender@example.com",
+                "mail_subject": "Subject",
+                "mail_body": "<p>Body</p>",
+                "mail_timestamp": "1700000000",
+                "att": 1,
+                "att_info": [{ "f": "file.txt", "t": "text/plain", "p": "99" }],
+                "sid_token": "sid123"
+            }));
+        });
+
+        let attachment_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/inbox")
+                .query_param("get_att", "")
+                .query_param("lang", "en")
+                .query_param("email_id", "123")
+                .query_param("part_id", "99")
+                .query_param("sid_token", "sid123");
+            then.status(200).body("hello");
+        });
+
+        let client = Client::new_for_tests(
+            base_url.clone(),
+            format!("{base_url}/ajax.php"),
+        );
+
+        let attachment = Attachment {
+            filename: "file.txt".to_string(),
+            content_type_or_hint: Some("text/plain".to_string()),
+            part_id: "99".to_string(),
+        };
+
+        let bytes = client
+            .fetch_attachment("alias@example.com", "123", &attachment)
+            .await
+            .unwrap();
+
+        assert_eq!(bytes, b"hello");
+        fetch_email_mock.assert();
+        attachment_mock.assert();
     }
 }
