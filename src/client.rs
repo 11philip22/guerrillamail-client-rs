@@ -356,9 +356,6 @@ impl Client {
         if attachment.part_id.trim().is_empty() {
             return Err(Error::ResponseParse("attachment missing part_id"));
         }
-        if mail_id.trim().is_empty() {
-            return Err(Error::ResponseParse("missing mail_id for attachment download"));
-        }
 
         let details = self.fetch_email(email, mail_id).await?;
         let inbox_url = self.inbox_url();
@@ -573,9 +570,7 @@ fn build_headers(
     api_token_header: &HeaderValue,
     include_content_type: bool,
 ) -> Result<HeaderMap> {
-    let host = url
-        .host_str()
-        .ok_or(Error::ResponseParse("missing host in URL"))?;
+    let host = url.host_str().expect("validated url missing host");
     let host_port = match url.port() {
         Some(port) => format!("{host}:{port}"),
         None => host.to_string(),
@@ -656,8 +651,8 @@ pub struct ClientBuilder {
     proxy: Option<String>,
     danger_accept_invalid_certs: bool,
     user_agent: String,
-    ajax_url: String,
-    base_url: String,
+    ajax_url: Url,
+    base_url: Url,
     timeout: std::time::Duration,
 }
 
@@ -676,8 +671,8 @@ impl ClientBuilder {
             proxy: None,
             danger_accept_invalid_certs: true,
             user_agent: USER_AGENT_VALUE.to_string(),
-            ajax_url: AJAX_URL.to_string(),
-            base_url: BASE_URL.to_string(),
+            ajax_url: Url::parse(AJAX_URL).expect("default ajax url must be valid"),
+            base_url: Url::parse(BASE_URL).expect("default base url must be valid"),
             // Keep requests from hanging indefinitely; 30s is a conservative, service-friendly default.
             timeout: std::time::Duration::from_secs(30),
         }
@@ -716,7 +711,11 @@ impl ClientBuilder {
     ///
     /// This is primarily useful for testing or if GuerrillaMail changes its endpoint.
     pub fn ajax_url(mut self, ajax_url: impl Into<String>) -> Self {
-        self.ajax_url = ajax_url.into();
+        let parsed = Url::parse(&ajax_url.into()).expect("invalid ajax_url");
+        if parsed.host_str().is_none() {
+            panic!("invalid ajax_url: missing host");
+        }
+        self.ajax_url = parsed;
         self
     }
 
@@ -724,7 +723,11 @@ impl ClientBuilder {
     ///
     /// This is primarily useful for testing.
     pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
-        self.base_url = base_url.into();
+        let parsed = Url::parse(&base_url.into()).expect("invalid base_url");
+        if parsed.host_str().is_none() {
+            panic!("invalid base_url: missing host");
+        }
+        self.base_url = parsed;
         self
     }
 
@@ -773,11 +776,9 @@ impl ClientBuilder {
             builder = builder.proxy(reqwest::Proxy::all(proxy_url)?);
         }
 
-        // Parse configured URLs early to fail fast on invalid input.
-        let base_url = Url::parse(&self.base_url)
-            .map_err(|_| Error::ResponseParse("invalid base_url"))?;
-        let ajax_url = Url::parse(&self.ajax_url)
-            .map_err(|_| Error::ResponseParse("invalid ajax_url"))?;
+        // URLs are validated when set on the builder.
+        let base_url = self.base_url;
+        let ajax_url = self.ajax_url;
 
         // Enable cookie store to persist session between requests.
         let http = builder.cookie_store(true).build()?;
