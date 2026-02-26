@@ -1,19 +1,21 @@
-# guerrillamail-client
+<p align="center">
+  <img src="assets/hero-banner.png" alt="hero pane" width="980">
+</p>
 
-[![Crates.io](https://img.shields.io/crates/v/guerrillamail-client.svg)](https://crates.io/crates/guerrillamail-client)
-[![Documentation](https://docs.rs/guerrillamail-client/badge.svg)](https://docs.rs/guerrillamail-client)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/11philip22/guerrillamail-client-rs/pulls)
+<p align="center">
+  <a href="https://crates.io/crates/guerrillamail-client"><img src="https://img.shields.io/badge/crates.io-guerrillamail--client-F59E0B?style=for-the-badge&logo=rust&logoColor=white" alt="Crates.io"></a>
+  <a href="https://docs.rs/guerrillamail-client"><img src="https://img.shields.io/badge/docs.rs-guerrillamail--client-3B82F6?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-8B5CF6?style=for-the-badge" alt="MIT License"></a>
+  <a href="https://github.com/woldp001/guerrillamail-client-rs/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-22C55E?style=for-the-badge" alt="PRs Welcome"></a>
+</p>
 
-![GuerrillaMail](https://img.guerrillamail.com/4/6/f/46f9fd8911b3a915c1fec119e9062d00.png)
+<p align="center">
+  <a href="#when-to-use-this">When to use this</a> · <a href="#features">Features</a> · <a href="#installation">Installation</a> · <a href="#quick-start">Quick start</a> · <a href="#downloading-attachments">Downloading attachments</a> · <a href="#configuration-via-builder">Configuration via builder</a> · <a href="#documentation">Documentation</a> · <a href="#contributing">Contributing</a> · <a href="#acknowledgements">Acknowledgements</a> · <a href="#support">Support</a> · <a href="#license">License</a>
+</p>
 
-An **async Rust API client** for the [GuerrillaMail](https://www.guerrillamail.com) temporary email service, built for testing and automation.
+---
 
-This crate lets you programmatically create disposable email addresses, poll inboxes, and fetch message contents using an idiomatic async Rust API built on `tokio` and `reqwest`.
-
-> ⚠️ **Unofficial API**  
-> GuerrillaMail does not provide a documented public API. This client reverse-engineers
-> the web interface and may break if GuerrillaMail changes their frontend behavior.
+An **async Rust API client** for the [GuerrillaMail](https://www.guerrillamail.com) temporary email service. This crate lets you programmatically create disposable email addresses, poll inboxes, and fetch message contents using an idiomatic async Rust API built on `tokio` and `reqwest`.
 
 ## When to use this
 
@@ -145,4 +147,4 @@ If this crate saves you time or helps your work, support is appreciated:
 
 ## License
 
-This project is licensed under the MIT License; see the [license](license) file for details.
+This project is licensed under the MIT License; see the [license](https://opensource.org/licenses/MIT) for details.
