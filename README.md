@@ -71,8 +71,9 @@ async fn main() -> Result<(), guerrillamail_client::Error> {
     println!("Temporary inbox: {email}");
 
     let messages = client.get_messages(&email).await?;
-    for message in &messages {
-        println!("{}: {}", message.mail_from, message.mail_subject);
+    for msg in &messages {
+        println!("From: {}", msg.mail_from);
+        println!("Subject: {}", msg.mail_subject);
     }
 
     if let Some(message) = messages.first() {
