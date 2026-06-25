@@ -790,7 +790,14 @@ impl ClientBuilder {
         let http = builder.cookie_store(true).build()?;
 
         // Fetch the main page to get API token.
-        let response = http.get(base_url.as_str()).send().await?.text().await?;
+        let response = http
+            .get(base_url.as_str())
+            .header(USER_AGENT, HeaderValue::from_str(&self.user_agent)?)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
 
         let api_token = parse_api_token(&response).ok_or(Error::TokenParse)?;
         let api_token_header = HeaderValue::from_str(&format!("ApiToken {}", api_token))?;
@@ -951,6 +958,34 @@ mod tests {
 
         assert!(matches!(err, Error::Request(_)));
         delete_mock.assert();
+    }
+
+    #[tokio::test]
+    async fn build_sends_user_agent_and_errors_on_non_success_status() {
+        let server = MockServer::start();
+        let base_url = server.base_url();
+
+        let bootstrap_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/")
+                .header("User-Agent", "bootstrap-test/1.0");
+            then.status(500);
+        });
+
+        let err = Client::builder()
+            .base_url(base_url.clone())
+            .ajax_url(format!("{base_url}/ajax.php"))
+            .user_agent("bootstrap-test/1.0")
+            .build()
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::Request(ref error)
+                if error.status() == Some(reqwest::StatusCode::INTERNAL_SERVER_ERROR)
+        ));
+        bootstrap_mock.assert();
     }
 
     #[test]
