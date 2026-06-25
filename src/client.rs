@@ -355,6 +355,9 @@ impl Client {
         if attachment.part_id.trim().is_empty() {
             return Err(Error::ResponseParse("attachment missing part_id"));
         }
+        if mail_id.trim().is_empty() {
+            return Err(Error::ResponseParse("message missing mail_id"));
+        }
 
         let details = self.fetch_email(email, mail_id).await?;
         let inbox_url = self.inbox_url();
@@ -912,6 +915,26 @@ mod tests {
         assert_eq!(bytes, b"hello");
         fetch_email_mock.assert();
         attachment_mock.assert();
+    }
+
+    #[tokio::test]
+    async fn fetch_attachment_errors_on_empty_mail_id() {
+        let client = Client::new_for_tests(
+            "https://example.com".to_string(),
+            "https://example.com/ajax.php".to_string(),
+        );
+        let attachment = Attachment {
+            filename: "file.txt".to_string(),
+            content_type_or_hint: None,
+            part_id: "99".to_string(),
+        };
+
+        let err = client
+            .fetch_attachment("alias@example.com", "   ", &attachment)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, Error::ResponseParse("message missing mail_id")));
     }
 
     #[tokio::test]
