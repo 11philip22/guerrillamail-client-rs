@@ -11,7 +11,6 @@
 //! 5) Optionally forget the address via [`Client::delete_email`]
 
 use crate::{Attachment, Error, Message, Result};
-use regex::Regex;
 use reqwest::{
     header::{
         ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, HOST, HeaderMap, HeaderValue, ORIGIN, REFERER,
@@ -615,6 +614,14 @@ const AJAX_URL: &str = "https://www.guerrillamail.com/ajax.php";
 const USER_AGENT_VALUE: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0";
 
+fn parse_api_token(page: &str) -> Option<&str> {
+    let tail = page.split_once("api_token")?.1;
+    let tail = tail.split_once(':')?.1;
+    let tail = tail.split_once('\'')?.1;
+    let token = tail.split_once('\'')?.0;
+    (!token.is_empty()).then_some(token)
+}
+
 /// Configures and bootstraps a GuerrillaMail [`Client`].
 ///
 /// Conceptually, [`ClientBuilder`] holds request-layer options (proxy, TLS leniency, user agent,
@@ -786,13 +793,7 @@ impl ClientBuilder {
         // Fetch the main page to get API token.
         let response = http.get(base_url.as_str()).send().await?.text().await?;
 
-        // Parse API token: api_token : 'xxxxxxxx'
-        let token_re = Regex::new(r"api_token\s*:\s*'([^']+)'")?;
-        let api_token = token_re
-            .captures(&response)
-            .and_then(|c| c.get(1))
-            .map(|m| m.as_str().to_string())
-            .ok_or(Error::TokenParse)?;
+        let api_token = parse_api_token(&response).ok_or(Error::TokenParse)?;
         let api_token_header = HeaderValue::from_str(&format!("ApiToken {}", api_token))?;
 
         let ajax_headers =
@@ -970,10 +971,8 @@ mod tests {
     }
 
     #[test]
-    fn token_regex_accepts_broad_characters() {
-        let token_re = Regex::new(r"api_token\s*:\s*'([^']+)'").unwrap();
+    fn token_parser_accepts_broad_characters() {
         let sample = "const data = { api_token : 'abc-123.def:ghi' };";
-        let caps = token_re.captures(sample).expect("should match");
-        assert_eq!(caps.get(1).unwrap().as_str(), "abc-123.def:ghi");
+        assert_eq!(parse_api_token(sample), Some("abc-123.def:ghi"));
     }
 }

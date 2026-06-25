@@ -35,10 +35,6 @@ pub enum Error {
     #[error("Failed to parse API token from GuerrillaMail page")]
     TokenParse,
 
-    /// Failed to build or parse a regex used by the client.
-    #[error("Regex error: {0}")]
-    Regex(#[from] regex::Error),
-
     /// Failed to construct an HTTP header value.
     #[error("Invalid header value: {0}")]
     HeaderValue(#[from] reqwest::header::InvalidHeaderValue),

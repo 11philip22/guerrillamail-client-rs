@@ -55,7 +55,7 @@ Add the crate and a Tokio runtime to your `Cargo.toml`:
 ```toml
 [dependencies]
 guerrillamail-client = "0.7.2"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
 ## Quick start
@@ -121,6 +121,8 @@ async fn main() -> Result<(), guerrillamail_client::Error> {
 
 Use the builder when you need traffic inspection, stricter TLS verification, a
 custom user agent, test endpoints, or a different timeout.
+
+For SOCKS proxies, enable the crate's `socks` feature.
 
 ```rust
 use guerrillamail_client::Client;
