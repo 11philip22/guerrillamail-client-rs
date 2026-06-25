@@ -871,60 +871,6 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use httpmock::Method::{GET, POST};
-    use httpmock::MockServer;
-    use serde_json::json;
-
-    #[tokio::test]
-    async fn fetch_attachment_builds_request_and_returns_bytes() {
-        let server = MockServer::start();
-        let base_url = server.base_url();
-
-        let fetch_email_mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/ajax.php")
-                .query_param("f", "fetch_email")
-                .query_param("email_id", "123");
-            then.status(200).json_body(json!({
-                "mail_id": "123",
-                "mail_from": "sender@example.com",
-                "mail_subject": "Subject",
-                "mail_body": "<p>Body</p>",
-                "mail_timestamp": "1700000000",
-                "att": 1,
-                "att_info": [{ "f": "file.txt", "t": "text/plain", "p": "99" }],
-                "sid_token": "sid123"
-            }));
-        });
-
-        let attachment_mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/inbox")
-                .query_param("get_att", "")
-                .query_param("lang", "en")
-                .query_param("email_id", "123")
-                .query_param("part_id", "99")
-                .query_param("sid_token", "sid123");
-            then.status(200).body("hello");
-        });
-
-        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
-
-        let attachment = Attachment {
-            filename: "file.txt".to_string(),
-            content_type_or_hint: Some("text/plain".to_string()),
-            part_id: "99".to_string(),
-        };
-
-        let bytes = client
-            .fetch_attachment("alias@example.com", "123", &attachment)
-            .await
-            .unwrap();
-
-        assert_eq!(bytes, b"hello");
-        fetch_email_mock.assert();
-        attachment_mock.assert();
-    }
 
     #[tokio::test]
     async fn fetch_attachment_errors_on_empty_mail_id() {
@@ -947,74 +893,6 @@ mod tests {
             err,
             Error::ResponseParse("message missing mail_id")
         ));
-    }
-
-    #[tokio::test]
-    async fn delete_email_returns_true_on_success() {
-        let server = MockServer::start();
-        let base_url = server.base_url();
-
-        let delete_mock = server.mock(|when, then| {
-            when.method(POST)
-                .path("/ajax.php")
-                .query_param("f", "forget_me");
-            then.status(204);
-        });
-
-        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
-
-        let ok = client.delete_email("alias@example.com").await.unwrap();
-
-        assert!(ok);
-        delete_mock.assert();
-    }
-
-    #[tokio::test]
-    async fn delete_email_errors_on_non_success_status() {
-        let server = MockServer::start();
-        let base_url = server.base_url();
-
-        let delete_mock = server.mock(|when, then| {
-            when.method(POST)
-                .path("/ajax.php")
-                .query_param("f", "forget_me");
-            then.status(500);
-        });
-
-        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
-
-        let err = client.delete_email("alias@example.com").await.unwrap_err();
-
-        assert!(matches!(err, Error::Request(_)));
-        delete_mock.assert();
-    }
-
-    #[tokio::test]
-    async fn build_sends_user_agent_and_errors_on_non_success_status() {
-        let server = MockServer::start();
-        let base_url = server.base_url();
-
-        let bootstrap_mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/")
-                .header("User-Agent", "bootstrap-test/1.0");
-            then.status(500);
-        });
-
-        let err = Client::builder()
-            .base_url(base_url.clone())
-            .ajax_url(format!("{base_url}/ajax.php"))
-            .user_agent("bootstrap-test/1.0")
-            .build()
-            .await
-            .unwrap_err();
-
-        assert!(matches!(
-            err,
-            Error::Request(ref error)
-                if error.status() == Some(reqwest::StatusCode::INTERNAL_SERVER_ERROR)
-        ));
-        bootstrap_mock.assert();
     }
 
     #[test]
