@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Subject:     {}", msg.mail_subject);
                 println!(
                     "Excerpt:     {}",
-                    &msg.mail_excerpt[..msg.mail_excerpt.len().min(80)]
+                    msg.mail_excerpt.chars().take(80).collect::<String>()
                 );
                 println!("Timestamp:   {}", msg.mail_timestamp);
 
