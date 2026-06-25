@@ -35,13 +35,6 @@ pub enum Error {
     #[error("Failed to parse API token from GuerrillaMail page")]
     TokenParse,
 
-    /// Failed to parse the available domain list from the GuerrillaMail page.
-    ///
-    /// This indicates that the service response structure may have changed
-    /// or did not include the expected domain information.
-    #[error("Failed to parse domain list from GuerrillaMail page")]
-    DomainParse,
-
     /// Failed to build or parse a regex used by the client.
     #[error("Regex error: {0}")]
     Regex(#[from] regex::Error),

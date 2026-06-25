@@ -2,7 +2,6 @@
 //!
 //! Features demonstrated:
 //! - Creating a client (with optional proxy support)
-//! - Viewing available email domains
 //! - Creating a temporary email address
 //! - Polling for incoming messages
 //! - Fetching full email content
