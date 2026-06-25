@@ -632,7 +632,7 @@ fn parse_api_token(page: &str) -> Option<&str> {
 /// Invariants/internal behavior:
 /// - The bootstrap fetch happens exactly once during `build`; the resulting token is baked into the
 ///   constructed [`Client`].
-/// - Defaults favor easy testing: no proxy, `danger_accept_invalid_certs = true`, browser-like
+/// - Defaults favor safe TLS: no proxy, `danger_accept_invalid_certs = false`, browser-like
 ///   user agent, 30s timeout, and the public GuerrillaMail endpoints.
 /// - `Clone` is cheap and copies configuration only; it does not perform additional network I/O.
 ///
@@ -646,7 +646,6 @@ fn parse_api_token(page: &str) -> Option<&str> {
 /// # async fn main() -> Result<(), guerrillamail_client::Error> {
 /// let client = Client::builder()
 ///     .proxy("http://127.0.0.1:8080")
-///     .danger_accept_invalid_certs(false)
 ///     .user_agent("my-app/2.0")
 ///     .build()
 ///     .await?;
@@ -676,7 +675,7 @@ impl ClientBuilder {
     pub fn new() -> Self {
         Self {
             proxy: None,
-            danger_accept_invalid_certs: true,
+            danger_accept_invalid_certs: false,
             user_agent: USER_AGENT_VALUE.to_string(),
             ajax_url: Url::parse(AJAX_URL).expect("default ajax url must be valid"),
             base_url: Url::parse(BASE_URL).expect("default base url must be valid"),
@@ -693,9 +692,9 @@ impl ClientBuilder {
         self
     }
 
-    /// Configure whether to accept invalid TLS certificates (default: `true`).
+    /// Configure whether to accept invalid TLS certificates (default: `false`).
     ///
-    /// Set this to `false` for stricter TLS verification.
+    /// Set this to `true` only for controlled debugging or test-proxy setups.
     ///
     /// # Security
     /// Accepting invalid certificates is unsafe on untrusted networks; it is primarily useful
@@ -968,6 +967,16 @@ mod tests {
         assert_eq!(client.user_agent, cloned.user_agent);
         assert_eq!(client.ajax_url, cloned.ajax_url);
         assert_eq!(client.base_url, cloned.base_url);
+    }
+
+    #[test]
+    fn builder_verifies_tls_by_default() {
+        assert!(!ClientBuilder::new().danger_accept_invalid_certs);
+        assert!(
+            ClientBuilder::new()
+                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_certs
+        );
     }
 
     #[test]

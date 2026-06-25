@@ -128,19 +128,12 @@ For SOCKS proxies, enable the crate's `socks` feature.
 use guerrillamail_client::Client;
 use std::time::Duration;
 
-#[tokio::main]
-async fn main() -> Result<(), guerrillamail_client::Error> {
-    let client = Client::builder()
-        .proxy("http://127.0.0.1:8080")
-        .danger_accept_invalid_certs(false)
-        .user_agent("my-app/1.0")
-        .timeout(Duration::from_secs(20))
-        .build()
-        .await?;
-
-    println!("{client:?}");
-    Ok(())
-}
+let client = Client::builder()
+    .proxy("http://127.0.0.1:8080")
+    .user_agent("my-app/1.0")
+    .timeout(std::time::Duration::from_secs(30)) // default is 30s; customize as needed
+    .build()
+    .await?;
 ```
 
 ## Examples
