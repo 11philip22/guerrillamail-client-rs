@@ -12,11 +12,11 @@
 
 use crate::{Attachment, Error, Message, Result};
 use reqwest::{
+    Url,
     header::{
         ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, HOST, HeaderMap, HeaderValue, ORIGIN, REFERER,
         USER_AGENT,
     },
-    Url,
 };
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -151,6 +151,7 @@ impl Client {
     /// # Errors
     /// - Returns `Error::Request` for network failures or non-2xx responses.
     /// - Returns `Error::ResponseParse` if the JSON body lacks a string `email_addr` field.
+    ///
     /// Network failures are typically transient; parse errors usually indicate an API schema change.
     ///
     /// # Network
@@ -212,6 +213,7 @@ impl Client {
     /// - Returns `Error::Request` for network failures or non-2xx responses.
     /// - Returns `Error::ResponseParse` when the JSON body is missing a `list` array.
     /// - Returns `Error::Json` if individual messages fail to deserialize.
+    ///
     /// Network issues are transient; parse/deserialize errors generally indicate a schema change.
     ///
     /// # Network
@@ -262,6 +264,7 @@ impl Client {
     /// # Errors
     /// - Returns `Error::Request` for network failures or non-2xx responses.
     /// - Returns `Error::Json` if the response body cannot be deserialized into `EmailDetails`.
+    ///
     /// Network issues are transient; deserialization errors suggest a changed API response.
     ///
     /// # Network
@@ -283,7 +286,9 @@ impl Client {
     /// # }
     /// ```
     pub async fn fetch_email(&self, email: &str, mail_id: &str) -> Result<crate::EmailDetails> {
-        let raw = self.get_api_text("fetch_email", email, Some(mail_id)).await?;
+        let raw = self
+            .get_api_text("fetch_email", email, Some(mail_id))
+            .await?;
 
         let details = serde_json::from_str::<crate::EmailDetails>(&raw)?;
         Ok(details)
@@ -296,12 +301,9 @@ impl Client {
     ///
     /// # Errors
     /// - Propagates any `Error::Request` or parsing errors from [`fetch_email`](Self::fetch_email).
+    ///
     /// Transient network issues bubble up unchanged; parse errors imply the upstream response shape shifted.
-    pub async fn list_attachments(
-        &self,
-        email: &str,
-        mail_id: &str,
-    ) -> Result<Vec<Attachment>> {
+    pub async fn list_attachments(&self, email: &str, mail_id: &str) -> Result<Vec<Attachment>> {
         let details = self.fetch_email(email, mail_id).await?;
         Ok(details.attachments)
     }
@@ -323,6 +325,7 @@ impl Client {
     /// # Errors
     /// - Returns `Error::ResponseParse` if `part_id` or `mail_id` are empty.
     /// - Returns `Error::Request` for network failures or non-2xx download responses (via `error_for_status`).
+    ///
     /// Empty identifiers are permanent until corrected; network and status errors are transient.
     ///
     /// # Network
@@ -369,10 +372,12 @@ impl Client {
             ("part_id", attachment.part_id.clone()),
         ];
 
-        if let Some(token) = details.sid_token.as_deref() {
-            if !token.is_empty() {
-                query.push(("sid_token", token.to_string()));
-            }
+        if let Some(token) = details
+            .sid_token
+            .as_deref()
+            .filter(|token| !token.is_empty())
+        {
+            query.push(("sid_token", token.to_string()));
         }
 
         let response = self
@@ -401,6 +406,7 @@ impl Client {
     ///
     /// # Errors
     /// - Returns `Error::Request` for network failures or non-2xx responses from the `forget_me` call.
+    ///
     /// Network/non-2xx failures are transient; repeated failures may indicate the service endpoint changed.
     ///
     /// # Network
@@ -603,8 +609,14 @@ fn build_headers(
         "X-Requested-With",
         HeaderValue::from_static("XMLHttpRequest"),
     );
-    headers.insert(ORIGIN, HeaderValue::from_str(&origin).map_err(Error::HeaderValue)?);
-    headers.insert(REFERER, HeaderValue::from_str(&referer).map_err(Error::HeaderValue)?);
+    headers.insert(
+        ORIGIN,
+        HeaderValue::from_str(&origin).map_err(Error::HeaderValue)?,
+    );
+    headers.insert(
+        REFERER,
+        HeaderValue::from_str(&referer).map_err(Error::HeaderValue)?,
+    );
     headers.insert("Sec-Fetch-Dest", HeaderValue::from_static("empty"));
     headers.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
     headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
@@ -759,6 +771,7 @@ impl ClientBuilder {
     /// - Returns `Error::Request` for HTTP client build issues, bootstrap network failures, or non-2xx responses.
     /// - Returns `Error::TokenParse` when the API token cannot be found in the bootstrap HTML.
     /// - Returns `Error::HeaderValue` if the token cannot be encoded into the authorization header.
+    ///
     /// Network-related failures are transient; token/header errors likely indicate a page layout change.
     ///
     /// # Network
@@ -805,12 +818,10 @@ impl ClientBuilder {
         let api_token = parse_api_token(&response).ok_or(Error::TokenParse)?;
         let api_token_header = HeaderValue::from_str(&format!("ApiToken {}", api_token))?;
 
-        let ajax_headers =
-            build_headers(&ajax_url, &self.user_agent, &api_token_header, true)?;
+        let ajax_headers = build_headers(&ajax_url, &self.user_agent, &api_token_header, true)?;
         let ajax_headers_no_ct =
             build_headers(&ajax_url, &self.user_agent, &api_token_header, false)?;
-        let base_headers =
-            build_headers(&base_url, &self.user_agent, &api_token_header, true)?;
+        let base_headers = build_headers(&base_url, &self.user_agent, &api_token_header, true)?;
 
         Ok(Client {
             http,
@@ -836,12 +847,13 @@ impl Client {
         let api_token_header = HeaderValue::from_static("ApiToken test");
         let base_url = Url::parse(&base_url).expect("invalid base_url in test");
         let ajax_url = Url::parse(&ajax_url).expect("invalid ajax_url in test");
-        let ajax_headers =
-            build_headers(&ajax_url, USER_AGENT_VALUE, &api_token_header, true).expect("ajax headers");
+        let ajax_headers = build_headers(&ajax_url, USER_AGENT_VALUE, &api_token_header, true)
+            .expect("ajax headers");
         let ajax_headers_no_ct =
-            build_headers(&ajax_url, USER_AGENT_VALUE, &api_token_header, false).expect("ajax headers no ct");
-        let base_headers =
-            build_headers(&base_url, USER_AGENT_VALUE, &api_token_header, true).expect("base headers");
+            build_headers(&ajax_url, USER_AGENT_VALUE, &api_token_header, false)
+                .expect("ajax headers no ct");
+        let base_headers = build_headers(&base_url, USER_AGENT_VALUE, &api_token_header, true)
+            .expect("base headers");
         Self {
             http,
             api_token_header,
@@ -896,10 +908,7 @@ mod tests {
             then.status(200).body("hello");
         });
 
-        let client = Client::new_for_tests(
-            base_url.clone(),
-            format!("{base_url}/ajax.php"),
-        );
+        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
 
         let attachment = Attachment {
             filename: "file.txt".to_string(),
@@ -934,7 +943,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert!(matches!(err, Error::ResponseParse("message missing mail_id")));
+        assert!(matches!(
+            err,
+            Error::ResponseParse("message missing mail_id")
+        ));
     }
 
     #[tokio::test]
@@ -949,10 +961,7 @@ mod tests {
             then.status(204);
         });
 
-        let client = Client::new_for_tests(
-            base_url.clone(),
-            format!("{base_url}/ajax.php"),
-        );
+        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
 
         let ok = client.delete_email("alias@example.com").await.unwrap();
 
@@ -972,10 +981,7 @@ mod tests {
             then.status(500);
         });
 
-        let client = Client::new_for_tests(
-            base_url.clone(),
-            format!("{base_url}/ajax.php"),
-        );
+        let client = Client::new_for_tests(base_url.clone(), format!("{base_url}/ajax.php"));
 
         let err = client.delete_email("alias@example.com").await.unwrap_err();
 
@@ -1014,10 +1020,7 @@ mod tests {
     #[test]
     fn client_is_clone() {
         let base_url = "https://example.com";
-        let client = Client::new_for_tests(
-            base_url.to_string(),
-            format!("{base_url}/ajax.php"),
-        );
+        let client = Client::new_for_tests(base_url.to_string(), format!("{base_url}/ajax.php"));
 
         let cloned = client.clone();
 
